@@ -3,6 +3,11 @@ package com.example.hugh.cryptoalert;
 import android.os.AsyncTask;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.TextView;
 
 import java.io.BufferedReader;
@@ -17,13 +22,15 @@ import android.os.Vibrator;
 import javax.net.ssl.HttpsURLConnection;
 
 public class MainActivity extends AppCompatActivity {
-
+    double alertValue;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        System.out.println("Testing 1 - Send Http GET request");
-        final TextView t = findViewById(R.id.bitcoin_value);
+        final TextView bitcoinValue = findViewById(R.id.bitcoin_value);
+        final TextView displayAlertValue = findViewById(R.id.displayAlertValue);
+        displayAlertValue.setText("");
+        final Button okButton = findViewById(R.id.ok_button);
         String latestValue = "no data obtained for some reason";
         String url;
         try {
@@ -34,14 +41,24 @@ public class MainActivity extends AppCompatActivity {
             latestValue = parseJSON(latestValue);
             latestValue = getBTCinEUR(latestValue);
 
-
         } catch (Exception e) {
             e.printStackTrace();
         }
 
-        t.setText(latestValue);
+        bitcoinValue.setText(latestValue);
 
-        //TODO: ADD VIBRATOR :^)
+        final EditText userInput = findViewById(R.id.editText2);
+
+        okButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+
+                alertValue = Double.parseDouble(userInput.getText().toString());
+                displayAlertValue.setText("You will be alerted at €"+alertValue);
+                System.out.println("Set value to " + alertValue);
+            }
+        });
+
 
     }
 
@@ -50,8 +67,6 @@ public class MainActivity extends AppCompatActivity {
         // optional default is GET
         con.setRequestMethod("GET");
         int responseCode = con.getResponseCode();
-        System.out.println("\nSending 'GET' request to URL : " + url);
-        System.out.println("Response Code : " + responseCode);
 
         BufferedReader in = new BufferedReader(
                 new InputStreamReader(con.getInputStream()));
@@ -63,14 +78,7 @@ public class MainActivity extends AppCompatActivity {
         }
         in.close();
 
-        //print result
-        for(int i = 0; i < 400; i++)System.out.print("uhhhhh");
-        String prettyResults = parseJSON(response.toString());
-
         return(getBTCinEUR(parseJSON(response.toString())));
-
-
-
     }
 
     public static String parseJSON(String json){
