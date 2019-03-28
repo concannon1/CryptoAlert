@@ -1,0 +1,6 @@
+<EditTextPreference android:key="alert_value"
+    android:defaultValue=" "
+    android:persistent="true"
+    android:enabled="true"
+    xmlns:android="http://schemas.android.com/apk/res/android" />
+

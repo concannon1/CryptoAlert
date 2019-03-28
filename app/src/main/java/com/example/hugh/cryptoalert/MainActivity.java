@@ -1,10 +1,14 @@
 package com.example.hugh.cryptoalert;
 
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.AsyncTask;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -19,93 +23,80 @@ import java.net.URL;
 
 import android.os.Vibrator;
 
+import com.google.gson.Gson;
+
 import javax.net.ssl.HttpsURLConnection;
 
 public class MainActivity extends AppCompatActivity {
-    double alertValue;
+    float alertValue;
+    private Intent serviceIntent;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         final TextView bitcoinValue = findViewById(R.id.bitcoin_value);
-        final TextView displayAlertValue = findViewById(R.id.displayAlertValue);
-        displayAlertValue.setText("");
+      //  final TextView displayAlertValue = findViewById(R.id.displayAlertValue);
+      //  displayAlertValue.setText("");
         final Button okButton = findViewById(R.id.ok_button);
         String latestValue = "no data obtained for some reason";
         String url;
+        serviceIntent = new Intent(getApplicationContext(), CheckBTCPrice.class);
+        startService(serviceIntent);
         try {
             url = "https://www.bitstamp.net/api/v2/ticker/btceur/";
 
             HttpGetRequest getRequest = new HttpGetRequest();
             latestValue = getRequest.execute(url).get();
-            latestValue = parseJSON(latestValue);
+            Log.i("tag2", latestValue);
             latestValue = getBTCinEUR(latestValue);
 
         } catch (Exception e) {
             e.printStackTrace();
         }
+        String s = CheckBTCPrice.getBTCinEUR();
+        bitcoinValue.setText("€"+latestValue);
+        //get the user's previously saved alert value, if it exists
+/*
+        SharedPreferences sp = getSharedPreferences("Alert Value", 0);
+        final SharedPreferences.Editor editor = sp.edit();
+        editor.putFloat("Alert Value", (float)0.1);
+        System.out.println(sp.getFloat("Alert Value", 0));
 
-        bitcoinValue.setText(latestValue);
-
+        /*
+        Context context = this;
+        SharedPreferences sharedPref = getActivity().getPreferences(Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPref.edit();
+   //     editor.putfloat(getString(R.xml.preferences.);
+     //
+        //
+        // editor.commit();
+*/
+        /*
         final EditText userInput = findViewById(R.id.editText2);
 
         okButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
 
-                alertValue = Double.parseDouble(userInput.getText().toString());
+                alertValue = Float.parseFloat(userInput.getText().toString());
+                editor.putFloat(getString(R.string.Alert_Value));
                 displayAlertValue.setText("You will be alerted at €"+alertValue);
                 System.out.println("Set value to " + alertValue);
             }
         });
-
+        */
 
     }
 
-    public static String sendGET(URL url) throws Exception{
-        HttpURLConnection con = (HttpURLConnection) url.openConnection();
-        // optional default is GET
-        con.setRequestMethod("GET");
-        int responseCode = con.getResponseCode();
+    //takes in a JSON object in string form
+    //converts it to a HTTPResponse object
+    //returns the Ask attribute of said object - the lowest price BTC is available for
+    public String getBTCinEUR(String data){
+        Gson gson = new Gson();
 
-        BufferedReader in = new BufferedReader(
-                new InputStreamReader(con.getInputStream()));
-        String inputLine;
-        StringBuffer response = new StringBuffer();
+        HTTPResponse response = gson.fromJson(data, HTTPResponse.class);
 
-        while ((inputLine = in.readLine()) != null) {
-            response.append(inputLine);
-        }
-        in.close();
-
-        return(getBTCinEUR(parseJSON(response.toString())));
-    }
-
-    public static String parseJSON(String json){
-        //replace all commas followed by spaces with newline
-        String parsed = json.replaceAll(", ", "\n");
-        //replace all curly braces and double quotes with nothing
-        parsed = parsed.replaceAll("\\{|\\}|\"", "");
-        return parsed;
-    }
-
-    public static String getBTCinEUR(String data){
-        //hideous regex coming up, only works when you get data from bitstamp.net
-
-        //gets rid of everything in the JSON except for "last", which is the latest value of bitcoin
-        String s = data.replaceAll("high: .*\\n", "");
-        s = s.replaceAll("timestamp:.*\\n", "");
-        s = s.replaceAll("bid:.*", "");//[0-9]+\\.[0-9]{2}\\n", "");
-        s = s.replaceAll("vwap:.*\\n", "");//[0-9]+\\.[0-9]{2}\\n", "");
-        s = s.replaceAll("volume:.*\\n", "");//[0-9]+\\.[0-9]{2}\\n", "");
-        s = s.replaceAll("low:.*\\n", "");//[0-9]+\\.[0-9]{2}\\n", "");
-        s = s.replaceAll("ask:.*\\n", "");//[0-9]+\\.[0-9]{2}\\n", "");
-        s = s.replaceAll("open:.*", "");//[0-9]+\\.[0-9]{2}\\n", "");
-        s = s.replaceAll("last: ", "€");
-
-        return s;
-
+        return String.valueOf(response.getAsk());
     }
 }
-
 
