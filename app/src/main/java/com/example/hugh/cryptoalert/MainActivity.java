@@ -1,9 +1,16 @@
 package com.example.hugh.cryptoalert;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.SharedPreferences.Editor;
 import android.os.AsyncTask;
+import android.os.Build;
+import android.os.VibrationEffect;
+import android.preference.PreferenceManager;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.text.Editable;
@@ -22,6 +29,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 
 import android.os.Vibrator;
+import android.widget.Toast;
 
 import com.google.gson.Gson;
 
@@ -29,63 +37,110 @@ import javax.net.ssl.HttpsURLConnection;
 
 public class MainActivity extends AppCompatActivity {
     float alertValue;
+    TextView alertValTextView;
+    TextView bitcoinValue;
+    Button okButton;
+    EditText userInput;
+    boolean showAlert = false;
+    Vibrator v;
+    //exchangeURL = "https://www.bitstamp.net/api/v2/ticker/btceur/";
+    private BroadcastReceiver listener;
     private Intent serviceIntent;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        final TextView bitcoinValue = findViewById(R.id.bitcoin_value);
-      //  final TextView displayAlertValue = findViewById(R.id.displayAlertValue);
-      //  displayAlertValue.setText("");
-        final Button okButton = findViewById(R.id.ok_button);
-        String latestValue = "no data obtained for some reason";
-        String url;
+        v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+        bitcoinValue = findViewById(R.id.bitcoin_value);
+        //set this to empty while obtaining data after opening the app
+        bitcoinValue.setText("");
+        userInput = findViewById(R.id.editText);
+        okButton = findViewById(R.id.ok_button);
+
+        loadSavedAlertValue();
         serviceIntent = new Intent(getApplicationContext(), CheckBTCPrice.class);
         startService(serviceIntent);
-        try {
-            url = "https://www.bitstamp.net/api/v2/ticker/btceur/";
 
-            HttpGetRequest getRequest = new HttpGetRequest();
-            latestValue = getRequest.execute(url).get();
-            Log.i("tag2", latestValue);
-            latestValue = getBTCinEUR(latestValue);
+        //updates the price onscreen, and alerts user if BTC value is within tolerance of the value they've set
+        listener = new BroadcastReceiver() {
+            @Override
+            public void onReceive( Context context, Intent intent ) {
+                String data = intent.getStringExtra("service message");
+                bitcoinValue.setText("€" + data);
+                float latestValue = Float.parseFloat(data);
+                //tolerance of €2
+                if(alertValue >= latestValue - 1 && alertValue <= latestValue + 1){
+                    showAlert = true;
+                    // Vibrate for 500 milliseconds
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        v.vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE));
+                    } else {
+                        //deprecated in API 26
+                        v.vibrate(500);
+                    }
+                    showToast("Bitcoin has reached " + latestValue + ". Press OK to mute");
+                }
+            }
+        };
 
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        String s = CheckBTCPrice.getBTCinEUR();
-        bitcoinValue.setText("€"+latestValue);
-        //get the user's previously saved alert value, if it exists
-/*
-        SharedPreferences sp = getSharedPreferences("Alert Value", 0);
-        final SharedPreferences.Editor editor = sp.edit();
-        editor.putFloat("Alert Value", (float)0.1);
-        System.out.println(sp.getFloat("Alert Value", 0));
-
-        /*
-        Context context = this;
-        SharedPreferences sharedPref = getActivity().getPreferences(Context.MODE_PRIVATE);
-        SharedPreferences.Editor editor = sharedPref.edit();
-   //     editor.putfloat(getString(R.xml.preferences.);
-     //
-        //
-        // editor.commit();
-*/
-        /*
-        final EditText userInput = findViewById(R.id.editText2);
-
+        //listen for user to click OK, then save that value
         okButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-
-                alertValue = Float.parseFloat(userInput.getText().toString());
-                editor.putFloat(getString(R.string.Alert_Value));
-                displayAlertValue.setText("You will be alerted at €"+alertValue);
-                System.out.println("Set value to " + alertValue);
+                //the phone is notifying and the user has pressed ok to mute
+                if(showAlert){
+                    showAlert = false;
+                    saveAlertValue("0");
+                }
+                //user is just changing alert value
+                else{
+                    saveAlertValue(userInput.getText().toString());
+                    showToast("You will be alerted when Bitcoin reaches €" + userInput.getText().toString());
+                }
             }
         });
-        */
 
+    }
+
+    private void showToast(String text){
+        Toast.makeText(MainActivity.this, text, Toast.LENGTH_SHORT).show();
+    }
+
+    //stores value as "storedVal" in sharedPreferences object
+    private void loadSavedAlertValue(){
+        SharedPreferences sharedPreferences = PreferenceManager
+                .getDefaultSharedPreferences(this);
+
+        String storedAlertValue = sharedPreferences.getString("storedVal", "0");
+        userInput.setText(storedAlertValue);
+        alertValue = Float.parseFloat(storedAlertValue);
+
+    }
+
+    /* set up for broadcast listener that listens to CheckBTCPrice service */
+    @Override
+    protected void onStart() {
+        super.onStart();
+        LocalBroadcastManager.getInstance(this).registerReceiver((listener),
+                new IntentFilter("service result"));
+    }
+
+    @Override
+    protected void onStop() {
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(listener);
+        super.onStop();
+    }
+
+    //runs when user hits OK button, saves the value
+    private void saveAlertValue(String alertVal){
+        SharedPreferences sharedPreferences = PreferenceManager
+                .getDefaultSharedPreferences(this);
+        Editor editor = sharedPreferences.edit();
+        editor.putString("storedVal", alertVal);
+        editor.commit();
+        alertValue = Float.parseFloat(alertVal);
+        userInput.setText(alertVal);
     }
 
     //takes in a JSON object in string form
